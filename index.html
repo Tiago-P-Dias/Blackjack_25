@@ -82,6 +82,7 @@
 
   <footer class="site-footer">
     <span><i class="bi bi-c-circle"></i>2026 Copyright : Rafael Carvalho & Tiago Dias</span>
+    <button class="cookie-link" id="cookie-open-preferences" type="button">Preferências de cookies</button>
     <span aria-hidden="true"><i class="bi bi-suit-club-fill"></i> &nbsp; <i class="bi bi-suit-diamond-fill"></i>
        &nbsp; <i class="bi bi-suit-heart-fill"></i> &nbsp; <i class="bi bi-suit-spade-fill"></i></span>
   </footer>
@@ -136,12 +137,106 @@
     </div>
   </div>
 
+  <!-- Cookie notice -->
+  <aside class="cookie-banner" id="cookie-banner" role="dialog" aria-modal="false" aria-labelledby="cookie-title"
+    aria-describedby="cookie-text" hidden>
+    <div class="cookie-content">
+      <h2 id="cookie-title"><i class="bi bi-cookie" aria-hidden="true"></i> Cookies e privacidade</h2>
+      <p id="cookie-text">Este jogo não usa cookies de rastreamento nem de publicidade e não recolhe dados pessoais.
+        Guardamos apenas no teu browser a tua escolha neste aviso, para não o voltares a ver. Os estilos e os ícones
+        são carregados a partir de uma CDN externa (jsDelivr), que pode registar o teu endereço IP.</p>
+    </div>
+    <div class="cookie-actions">
+      <button class="btn button button-primary" id="cookie-accept" type="button">Entendido</button>
+    </div>
+  </aside>
+ 
+  <!-- Cookie banner: shown until the visitor chooses. Analytics only loads after acceptance. -->
+  <div class="cookie-banner" id="cookie-banner" role="dialog" aria-labelledby="cookie-title"
+    aria-describedby="cookie-text" hidden>
+    <div class="cookie-banner-body">
+      <h2 id="cookie-title"><i class="bi bi-cookie" aria-hidden="true"></i> Cookies</h2>
+      <p id="cookie-text">
+        Usamos cookies estritamente necessários para o jogo funcionar e, se deixares, cookies de análise
+        (Google Analytics) que medem as visualizações de página, os deslocamentos na página e os cliques em
+        links para outros sites. Só os ativamos com o teu consentimento e podes alterá-lo em qualquer altura.
+      </p>
+    </div>
+    <div class="cookie-actions">
+      <button class="btn button button-secondary" id="cookie-reject" type="button">Rejeitar</button>
+      <button class="btn button button-secondary" id="cookie-customize" type="button">Personalizar</button>
+      <button class="btn button button-primary" id="cookie-accept" type="button">Aceitar</button>
+    </div>
+  </div>
+ 
+  <!-- Cookie preferences (Bootstrap modal) -->
+  <div class="modal fade" id="cookie-preferences" tabindex="-1" aria-labelledby="cookie-preferences-title"
+    aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content rules-dialog">
+        <div class="modal-header rules-header">
+          <div>
+            <span class="table-kicker">PRIVACIDADE</span>
+            <h2 id="cookie-preferences-title">Preferências de cookies</h2>
+          </div>
+          <button class="rules-close" type="button" aria-label="Fechar preferências" data-bs-dismiss="modal"><i
+              class="bi bi-x"></i></button>
+        </div>
+ 
+        <div class="modal-body">
+          <div class="cookie-option">
+            <div>
+              <h3 id="cookie-necessary-title">Estritamente necessários</h3>
+              <p>Guardam a tua escolha sobre cookies e permitem que o jogo funcione. Não podem ser desativados e não
+                recolhem dados pessoais.</p>
+            </div>
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" role="switch" checked disabled
+                aria-labelledby="cookie-necessary-title">
+            </div>
+          </div>
+ 
+          <div class="cookie-option">
+            <div>
+              <h3 id="cookie-analytics-title">Análise (Google Analytics)</h3>
+              <p>Medem de forma agregada como o site é utilizado, para o melhorarmos. Registam:</p>
+              <ul class="cookie-list">
+                <li><strong>Visualizações de página:</strong> sempre que uma página é carregada.</li>
+                <li><strong>Deslocamentos:</strong> quando chegas à parte inferior de uma página.</li>
+                <li><strong>Cliques de saída:</strong> quando clicas num link que leva para outro site.</li>
+              </ul>
+              <p>Cookies: <code>_ga</code> e <code>_ga_*</code> (até 2 anos). Os dados são tratados pela Google.</p>
+            </div>
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" role="switch" id="cookie-analytics"
+                aria-labelledby="cookie-analytics-title">
+            </div>
+          </div>
+ 
+          <div class="cookie-modal-actions">
+            <button class="btn button button-secondary" id="cookie-save" type="button">Guardar escolha</button>
+            <button class="btn button button-primary" id="cookie-accept-all" type="button">Aceitar todos</button>
+          </div>
+ 
+          <p class="rules-note">Podes mudar a tua escolha em qualquer altura em “Preferências de cookies”, no fim da
+            página.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
     integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
     crossorigin="anonymous"></script>
 
   <script src="js/blackjack_object.js"></script>
   <script src="js/blackjack_manager.js"></script>
-  <script>window.addEventListener('DOMContentLoaded', newGame);</script>
+  <script src="js/cookie_consent.js"></script>
+  <script>
+    window.addEventListener('DOMContentLoaded', () => {
+      newGame();
+      cookieNoticeInitialization();
+    });
+  </script>
 </body>
 </html>
