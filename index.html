@@ -136,20 +136,6 @@
       </div>
     </div>
   </div>
-
-  <!-- Cookie notice -->
-  <aside class="cookie-banner" id="cookie-banner" role="dialog" aria-modal="false" aria-labelledby="cookie-title"
-    aria-describedby="cookie-text" hidden>
-    <div class="cookie-content">
-      <h2 id="cookie-title"><i class="bi bi-cookie" aria-hidden="true"></i> Cookies e privacidade</h2>
-      <p id="cookie-text">Este jogo não usa cookies de rastreamento nem de publicidade e não recolhe dados pessoais.
-        Guardamos apenas no teu browser a tua escolha neste aviso, para não o voltares a ver. Os estilos e os ícones
-        são carregados a partir de uma CDN externa (jsDelivr), que pode registar o teu endereço IP.</p>
-    </div>
-    <div class="cookie-actions">
-      <button class="btn button button-primary" id="cookie-accept" type="button">Entendido</button>
-    </div>
-  </aside>
  
   <!-- Cookie banner: shown until the visitor chooses. Analytics only loads after acceptance. -->
   <div class="cookie-banner" id="cookie-banner" role="dialog" aria-labelledby="cookie-title"
@@ -233,10 +219,7 @@
   <script src="js/blackjack_manager.js"></script>
   <script src="js/cookie_consent.js"></script>
   <script>
-    window.addEventListener('DOMContentLoaded', () => {
-      newGame();
-      cookieNoticeInitialization();
-    });
+    window.addEventListener('DOMContentLoaded', newGame);
   </script>
 </body>
 </html>
