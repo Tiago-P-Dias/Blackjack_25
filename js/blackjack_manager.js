@@ -1,0 +1,326 @@
+// Blackjack OOP
+
+let game = null; // Stores the current instance of the game
+let dealerPlaying = false; // true while the dealer plays his turn step by step
+
+const DEAL_STEP_MS = 300; //Delay between cards delat in the same update 
+const FLIP_MS = 600; // Duration of the flip of the dealer's hidden card
+const DEALER_STEP_MS = 800; //Pause after each carrd drawn by the dealer
+
+/**
+ * Waits for the given time.
+ * @param {number} ms - The time to wait in milliseconds.
+ * @returns {Promise<void>} - A promise resolved after the wait.
+ */
+function wait(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Initializes the game buttons.
+ */
+function buttonsInitialization() {
+    document.getElementById('card').disabled = false; // Enables the button to draw a card
+    document.getElementById('stand').disabled = false; // Enables the button to stand
+    document.getElementById('new_game').disabled = true; // Disables the button for a new game
+}
+
+/**
+ * Disables the player's buttons while the dealer plays his turn.
+ */
+function lockPlayerButtons() {
+    document.getElementById('card').disabled = true;
+    document.getElementById('stand').disabled = true;
+}
+
+/**
+ * Finalizes the buttons after the game ends.
+ */
+function finalizeButtons() {
+    document.getElementById('card').disabled = true; // Disables the button to draw a card
+    document.getElementById('stand').disabled = true; // Disables the button to stand
+    document.getElementById('new_game').disabled = false; // Enables the button for a new game
+}
+
+/**
+ * Sets the result tag (won / lost / busted / draw) next to a hand's title.
+ * @param {string} id - The id of the tag element.
+ * @param {string} text - The text to show (empty hides the tag).
+ * @param {string} [className=''] - The CSS class that colors the tag.
+ */
+function setResultTag(id, text, className = '') {
+    const tag = document.getElementById(id);
+    tag.textContent = text;
+    tag.className = `result-tag ${className}`.trim();
+}
+
+/**
+ * Clears the page to start a new game.
+ */
+function clearPage() {
+    document.getElementById('dealer').replaceChildren();
+    document.getElementById('player').replaceChildren();
+    document.getElementById('dealer-score').textContent = '-';
+    document.getElementById('player-score').textContent = '-';
+    setResultTag('dealer-result', '');
+    setResultTag('player-result', '');
+
+    const status = document.getElementById('game_status');
+    status.textContent = 'A preparar mesa ...';
+    status.className = 'game-status';
+}
+
+/**
+ * Starts a new game of Blackjack.
+ */
+function newGame() {
+    game = new Blackjack(); // Creates a new instance of the Blackjack game
+    clearPage();
+    buttonsInitialization();
+    game.playerCards.push(game.deck.pop(), game.deck.pop());
+    game.dealerCards.push(game.deck.pop(), game.deck.pop());
+
+    const state = game.getGameState();
+    updatePlayer(state);
+    updateDealer(state, DEAL_STEP_MS / 2);
+    finalScore(state);
+}
+
+/**
+ * Calculates and displays the final score of the game.
+ * @param {Object} state - The current state of the game.
+ */
+function finalScore(state) {
+    const status = document.getElementById('game_status');
+    const playerValue = game.getCardsValue(game.getPlayerCards());
+    const dealerValue = game.getCardsValue(game.getDealerCards());
+
+    if (state.gameEnded){
+        finalizeButtons();
+        updateDealer(state);
+
+        if (state.playerBusted){
+            status.textContent = `Ultrapassaste os ${Blackjack.MAX_POINTS} pontos. O dealer venceu!`;
+            status.className = 'game-status result-loss';
+        } else if (state.dealerBusted){
+            status.textContent = `O dealer ultrapassou os ${Blackjack.MAX_POINTS} pontos. Ganhaste!`;
+            status.className = 'game-status result-win';
+        } else if (state.playerWon){
+            status.textContent = playerValue === Blackjack.MAX_POINTS
+                ? `Fizeste ${Blackjack.MAX_POINTS} pontos. Ganhaste!`
+                : `Ganhaste esta ronda por ${playerValue} contra ${dealerValue}!`;
+            status.className = 'game-status result-win';
+        } else if (state.dealerWon){
+            status.textContent = `O dealer ganhou esta ronda por ${dealerValue} contra ${playerValue}.`;
+            status.className = 'game-status result-loss';
+        } else {
+            status.textContent = `Empate! Ambos ficaram com ${playerValue} pontos.`;
+            status.className = 'game-status result-draw';
+        }
+        return;
+    }
+
+    status.textContent = game.dealerTurn 
+        ? `É a vez do dealer - tens ${playerValue} pontos e o dealer tem ${dealerValue} pontos.`
+        : `É a tua vez - tens ${playerValue} pontos.`
+    status.className = 'game-status';
+}
+
+/**
+ * Updates the dealer's state in the game.
+ * @param {Object} state - The current state of the game.
+ */
+function updateDealer(state, delayOffset = 0) {
+    const dealerElement = document.getElementById('dealer');
+    const cards = game.getDealerCards();
+    const revealAll = game.dealerTurn || state.gameEnded;
+    const shown = dealerElement.children.length;
+
+    for(let index = shown; index < cards.length; index++){
+        const delay = delayOffset + (index - shown) * DEAL_STEP_MS;
+        printCard(dealerElement, cards[index], false, index === 1 && !revealAll, delay);
+    }
+
+    if (revealAll) {
+        const hiddenCard = dealerElement.querySelector('.card-flip:not(.is-flipped)');
+        if (hiddenCard) {
+            flipCard(hiddenCard);
+        }
+    }
+
+    const visibleCards = revealAll ? cards : cards.slice(0, 1);
+    document.getElementById('dealer-score').textContent = String(game.getCardsValue(visibleCards));
+ 
+    if (state.gameEnded) {
+        if (state.dealerWon) {
+            setResultTag('dealer-result', 'Ganhou', 'result-win');
+        } else if (state.dealerBusted) {
+            setResultTag('dealer-result', 'Rebentou', 'result-loss');
+        } else if (state.playerWon) {
+            setResultTag('dealer-result', 'Perdeu', 'result-loss');
+        } else {
+            setResultTag('dealer-result', 'Empate', 'result-draw');
+        }
+        finalizeButtons();
+    } else {
+        setResultTag('dealer-result', '');
+    }
+}
+
+/**
+ * Updates the player's state in the game.
+ * @param {Object} state - The current state of the game.
+ */
+function updatePlayer(state) {
+    const playerElement = document.getElementById('player');
+    const cards = game.getPlayerCards();
+    const shown = playerElement.children.length; // Cards already on the table
+ 
+    for (let index = shown; index < cards.length; index++) {
+        printCard(playerElement, cards[index], false, false, (index - shown) * DEAL_STEP_MS);
+    }
+ 
+    document.getElementById('player-score').textContent = String(game.getCardsValue(cards));
+ 
+    if (state.gameEnded && !dealerPlaying) {
+        if (state.playerWon) {
+            setResultTag('player-result', 'Ganhaste', 'result-win');
+        } else if (state.playerBusted) {
+            setResultTag('player-result', 'Rebentaste', 'result-loss');
+        } else if (state.dealerWon) {
+            setResultTag('player-result', 'Perdeste', 'result-loss');
+        } else {
+            setResultTag('player-result', 'Empate', 'result-draw');
+        }
+        finalizeButtons();
+    } else {
+        setResultTag('player-result', '');
+    }
+}
+
+/**
+ * Causes the dealer to draw a new card.
+ * @returns {Object} - The game state after the dealer's move.
+ */
+function dealerNewCard() {
+    const state = game.dealerMove();
+    updateDealer(state);
+    if (state.gameEnded) {
+        updatePlayer(state); // Shows the player's result too
+    }
+    finalScore(state);
+    return state;
+}
+
+/**
+ * Causes the player to draw a new card.
+ * @returns {Object} - The game state after the player's move.
+ */
+function playerNewCard() {
+    const state = game.playerMove();
+    updatePlayer(state);
+    if (state.gameEnded) {
+        updateDealer(state); // Reveals the dealer's hidden card and shows his result
+    }
+    finalScore(state);
+    return state;
+}
+
+/**
+ * Finishes the dealer's turn.
+ */
+async function dealerFinish() {
+    if (!game || dealerPlaying || game.getGameState().gameEnded) {
+        return;
+    }
+ 
+    const currentGame = game; // Used to stop if a new game starts in the meantime
+    dealerPlaying = true;
+    lockPlayerButtons();
+ 
+    game.setDealerTurn(true); // From now on the dealer plays
+    let state = game.getGameState();
+    updateDealer(state); // Flips the hidden card
+    finalScore(state);
+    await wait(FLIP_MS + 300);
+ 
+    // The dealer keeps drawing, one card at a time, until the game ends
+    while (!state.gameEnded) {
+        if (game !== currentGame) {
+            return;
+        }
+        state = dealerNewCard();
+        await wait(DEALER_STEP_MS);
+    }
+ 
+    if (game !== currentGame) {
+        return;
+    }
+ 
+    // All the cards are on the table: show the final result
+    dealerPlaying = false;
+    updateDealer(state);
+    updatePlayer(state);
+    finalScore(state);
+}
+
+/**
+ * Prints the card in the graphical interface.
+ * @param {HTMLElement} element - The element where the card will be displayed.
+ * @param {Card} card - The card to be displayed.
+ * @param {boolean} [replace=false] - Indicates whether to replace the existing image.
+ */
+function printCard(element, card, replace = false, hidden = false, delay = 0) {
+    const cardName = `${card.rank} de ${card.suit}`;
+    let cardElement;
+ 
+    if (hidden) {
+        cardElement = document.createElement('div');
+        cardElement.className = 'playing-card card-flip';
+        cardElement.setAttribute('role', 'img');
+        cardElement.setAttribute('aria-label', 'Carta virada para baixo');
+        cardElement.dataset.label = cardName; // Used as the description after the flip
+ 
+        const inner = document.createElement('div');
+        inner.className = 'card-inner';
+ 
+        const back = document.createElement('img');
+        back.className = 'card-face card-back';
+        back.alt = '';
+        back.src = 'img/svg/card_back.svg';
+        back.draggable = false;
+ 
+        const front = document.createElement('img');
+        front.className = 'card-face card-front';
+        front.alt = '';
+        front.src = card.image;
+        front.draggable = false;
+ 
+        inner.appendChild(back);
+        inner.appendChild(front);
+        cardElement.appendChild(inner);
+    } else {
+        cardElement = document.createElement('img');
+        cardElement.className = 'playing-card';
+        cardElement.alt = cardName;
+        cardElement.src = card.image;
+        cardElement.draggable = false;
+    }
+ 
+    cardElement.style.animationDelay = `${delay}ms`;
+ 
+    if (replace) {
+        element.replaceChildren(cardElement);
+    } else {
+        element.appendChild(cardElement);
+    }
+}
+
+/**
+ * Flips a face-down card so its face is shown.
+ * @param {HTMLElement} cardElement - The card created by printCard with hidden = true.
+ */
+function flipCard(cardElement) {
+    cardElement.classList.add('is-flipped');
+    cardElement.setAttribute('aria-label', cardElement.dataset.label);
+}
