@@ -985,6 +985,16 @@ button {
   }
 }
 
+@media (min-width: 1020px) {
+  html {
+    zoom: 0.9;
+  }
+
+  .modal-backdrop {
+    zoom: 1.2;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
