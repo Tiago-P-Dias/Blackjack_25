@@ -328,6 +328,7 @@ button {
   gap: 10px;
   overflow-x: auto;
   padding: 0 2px 8px;
+  justify-content: center;
 }
 
 .playing-card {
