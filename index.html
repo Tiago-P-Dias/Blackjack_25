@@ -12,21 +12,14 @@
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 
+  <!-- Tipografia dos temas exclusivos -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Exo+2:wght@400;600;700&family=Fredoka:wght@400;500;600&family=Orbitron:wght@500;700&family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+
   <link rel="stylesheet" href="css/blackjack_style.css">
   <title>Blackjack 25</title>
-
-  <link rel="icon" href="img/playing-cards-cores.ico" sizes="any">
 </head>
-
-<!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-L1VEZ0MMYW"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-
-  gtag('config', 'G-L1VEZ0MMYW');
-</script>
 
 <body>
   <!-- Header section containing the game title -->
@@ -43,7 +36,12 @@
       <div class="table-heading">
         <span class="table-kicker">MESA</span>
         <div class="table-tools">
+          
           <span class="rule-chip">Limite <strong>25</strong></span>
+          <button class="rules-trigger" id="shop-button" type="button" data-bs-toggle="modal"
+            data-bs-target="#shop-dialog">
+            Loja
+          </button>
           <button class="rules-trigger" id="rules-button" type="button" data-bs-toggle="modal"
             data-bs-target="#rules-dialog">
             Regras
@@ -66,13 +64,25 @@
 
       <section class="hand player-hand" aria-labelledby="player-heading">
         <div class="hand-heading">
-          <div class="d-flex align-items-baseline gap-2">
+          <div class="d-flex align-items-baseline gap-3">
             <h2 id="player-heading">A tua mão</h2>
+            <span class="rule-chip" aria-label="Fichas"><i class="bi bi-coin"></i> <strong id="chips">100</strong></span>
             <span class="result-tag" id="player-result"></span>
           </div>
           <span class="score"><span class="score-label">PONTOS</span><strong id="player-score">-</strong></span>
         </div>
         <div class="card-row" id="player" aria-label="As tuas cartas"></div>
+      </section>
+
+      <section class="bet-panel" id="bet-panel" aria-label="Aposta">
+        <div class="bet-controls">
+          <span class="score-label">APOSTA</span>
+          <button class="bet-step" type="button" aria-label="Diminuir aposta" onclick="changeBet(-10)">−</button>
+          <strong id="bet-amount">10</strong>
+          <button class="bet-step" type="button" aria-label="Aumentar aposta" onclick="changeBet(10)">+</button>
+          <button class="bet-step" type="button" onclick="changeBet('max')">Máx</button>
+        </div>
+        <button class="btn button button-primary" id="deal" type="button" onclick="startRound()">Dar cartas</button>
       </section>
 
       <section class="controls" aria-label="Ações do jogo">
@@ -93,8 +103,7 @@
 
 
   <footer class="site-footer">
-    <span><i class="bi bi-c-circle"></i>2026 Copyright : Tiago Dias</span>
-    <button class="cookie-link" id="cookie-open-preferences" type="button">Preferências de cookies</button>
+    <span><i class="bi bi-c-circle"></i> 2026 Rafael Carvalho & Tiago Dias</span>
     <span aria-hidden="true"><i class="bi bi-suit-club-fill"></i> &nbsp; <i class="bi bi-suit-diamond-fill"></i>
        &nbsp; <i class="bi bi-suit-heart-fill"></i> &nbsp; <i class="bi bi-suit-spade-fill"></i></span>
   </footer>
@@ -142,82 +151,38 @@
             </ul>
           </section>
  
+          <section class="rules-section" aria-labelledby="chips-title">
+            <h3 id="chips-title">Fichas e apostas</h3>
+            <ul class="rules-list">
+              <li>Começas com 100 fichas. Antes de cada ronda escolhes quanto apostar (mínimo 10).</li>
+              <li>Se ganhas, recebes o dobro da aposta. Se empatas, a aposta é devolvida. Se perdes, ficas sem ela.</li>
+              <li>Usa as fichas na <strong>Loja</strong> para desbloquear temas exclusivos: cada um muda o fundo, a mesa, as letras, as animações e até o verso das cartas.</li>
+              <li>Se ficares sem fichas, recebes 100 novas e manténs os temas desbloqueados.</li>
+            </ul>
+          </section>
+
           <p class="rules-note">Cada ronda usa um baralho baralhado de 52 cartas. Escolhe “Nova ronda” para começar de
             novo.</p>
         </div>
       </div>
     </div>
   </div>
- 
-  <!-- Cookie banner: shown until the visitor chooses. Analytics only loads after acceptance. -->
-  <div class="cookie-banner" id="cookie-banner" role="dialog" aria-labelledby="cookie-title"
-    aria-describedby="cookie-text" hidden>
-    <div class="cookie-banner-body">
-      <h2 id="cookie-title"><i class="bi bi-cookie" aria-hidden="true"></i> Cookies</h2>
-      <p id="cookie-text">
-        Usamos cookies estritamente necessários para o jogo funcionar e, se deixares, cookies de análise
-        (Google Analytics) que medem as visualizações de página, os deslocamentos na página e os cliques em
-        links para outros sites. Só os ativamos com o teu consentimento e podes alterá-lo em qualquer altura.
-      </p>
-    </div>
-    <div class="cookie-actions">
-      <button class="btn button button-secondary" id="cookie-reject" type="button">Rejeitar</button>
-      <button class="btn button button-secondary" id="cookie-customize" type="button">Personalizar</button>
-      <button class="btn button button-primary" id="cookie-accept" type="button">Aceitar</button>
-    </div>
-  </div>
- 
-  <!-- Cookie preferences (Bootstrap modal) -->
-  <div class="modal fade" id="cookie-preferences" tabindex="-1" aria-labelledby="cookie-preferences-title"
-    aria-hidden="true">
+
+  <div class="modal fade" id="shop-dialog" tabindex="-1" aria-labelledby="shop-title" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
       <div class="modal-content rules-dialog">
         <div class="modal-header rules-header">
           <div>
-            <span class="table-kicker">PRIVACIDADE</span>
-            <h2 id="cookie-preferences-title">Preferências de cookies</h2>
+            <span class="table-kicker">PERSONALIZAÇÃO</span>
+            <h2 id="shop-title">Loja de temas</h2>
           </div>
-          <button class="rules-close" type="button" aria-label="Fechar preferências" data-bs-dismiss="modal"><i
+          <button class="rules-close" type="button" aria-label="Fechar loja" data-bs-dismiss="modal"><i
               class="bi bi-x"></i></button>
         </div>
- 
+
         <div class="modal-body">
-          <div class="cookie-option">
-            <div>
-              <h3 id="cookie-necessary-title">Estritamente necessários</h3>
-              <p>Guardam a tua escolha sobre cookies e permitem que o jogo funcione. Não podem ser desativados e não
-                recolhem dados pessoais.</p>
-            </div>
-            <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" role="switch" checked disabled
-                aria-labelledby="cookie-necessary-title">
-            </div>
-          </div>
- 
-          <div class="cookie-option">
-            <div>
-              <h3 id="cookie-analytics-title">Análise (Google Analytics)</h3>
-              <p>Medem de forma agregada como o site é utilizado, para o melhorarmos. Registam:</p>
-              <ul class="cookie-list">
-                <li><strong>Visualizações de página:</strong> sempre que uma página é carregada.</li>
-                <li><strong>Deslocamentos:</strong> quando chegas à parte inferior de uma página.</li>
-                <li><strong>Cliques de saída:</strong> quando clicas num link que leva para outro site.</li>
-              </ul>
-              <p>Cookies: <code>_ga</code> e <code>_ga_*</code> (até 2 anos). Os dados são tratados pela Google.</p>
-            </div>
-            <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" role="switch" id="cookie-analytics"
-                aria-labelledby="cookie-analytics-title">
-            </div>
-          </div>
- 
-          <div class="cookie-modal-actions">
-            <button class="btn button button-secondary" id="cookie-save" type="button">Guardar escolha</button>
-            <button class="btn button button-primary" id="cookie-accept-all" type="button">Aceitar todos</button>
-          </div>
- 
-          <p class="rules-note">Podes mudar a tua escolha em qualquer altura em “Preferências de cookies”, no fim da
-            página.</p>
+          <p class="rules-note" style="border: 0; margin-top: 14px;">As tuas fichas: <strong id="shop-chips"></strong></p>
+          <div class="shop-list" id="shop-list"></div>
         </div>
       </div>
     </div>
@@ -228,10 +193,8 @@
     crossorigin="anonymous"></script>
 
   <script src="js/blackjack_object.js"></script>
+  <script src="js/blackjack_wallet.js"></script>
   <script src="js/blackjack_manager.js"></script>
-  <script src="js/cookie_consent.js"></script>
-  <script>
-    window.addEventListener('DOMContentLoaded', newGame);
-  </script>
+  <script>window.addEventListener('DOMContentLoaded', newGame);</script>
 </body>
 </html>
