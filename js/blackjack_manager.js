@@ -3,6 +3,11 @@
 let game = null; // Stores the current instance of the game
 let dealerPlaying = false; // true while the dealer plays his turn step by step
 
+const wallet = new Wallet(); // Chips, unlocked themes and active theme
+let currentBet = Wallet.MIN_BET; // Bet chosen for the current round
+let roundSettled = false; // Guarantees the bet is settled only once per round
+let roundNet = 0; // Chips won (+) or lost (-) in the current round
+
 const DEAL_STEP_MS = 300; //Delay between cards delat in the same update 
 const FLIP_MS = 600; // Duration of the flip of the dealer's hidden card
 const DEALER_STEP_MS = 800; //Pause after each carrd drawn by the dealer
@@ -71,12 +76,201 @@ function clearPage() {
 }
 
 /**
- * Starts a new game of Blackjack.
+ * Shows the chips in the header and in the shop.
+ */
+function renderChips() {
+    document.getElementById('chips').textContent = wallet.chips;
+    document.getElementById('shop-chips').textContent = wallet.chips;
+}
+
+/**
+ * Applies the active theme to the page: styles (via data-theme), icons and tagline.
+ */
+function applyTheme() {
+    const theme = THEMES.find(t => t.id === wallet.theme) || THEMES[0];
+    document.documentElement.dataset.theme = theme.id;
+    document.querySelector('.brand-mark i').className = `bi ${theme.brandIcon}`;
+    document.querySelector('.table-divider i').className = `bi ${theme.dividerIcon}`;
+    document.querySelector('.header-note').textContent = theme.tagline;
+
+    // Color of the browser bar on mobile
+    const color = getComputedStyle(document.documentElement).getPropertyValue('--felt-deep').trim();
+    document.querySelector('meta[name="theme-color"]').setAttribute('content', color);
+}
+
+/**
+ * Shows the current bet.
+ */
+function renderBet() {
+    document.getElementById('bet-amount').textContent = currentBet;
+}
+
+/**
+ * Changes the bet in steps, or sets the maximum with 'max'.
+ * @param {number|string} change - Amount to add (can be negative) or 'max'.
+ */
+function changeBet(change) {
+    const maxBet = Math.max(Wallet.MIN_BET, Math.floor(wallet.chips / Wallet.BET_STEP) * Wallet.BET_STEP);
+    const wanted = change === 'max' ? wallet.chips : currentBet + change;
+    const rounded = Math.floor(wanted / Wallet.BET_STEP) * Wallet.BET_STEP;
+    currentBet = Math.min(Math.max(rounded, Wallet.MIN_BET), maxBet);
+    renderBet();
+}
+
+/**
+ * Buttons during the betting phase: only the bet panel is usable.
+ */
+function bettingButtons() {
+    document.getElementById('card').disabled = true;
+    document.getElementById('stand').disabled = true;
+    document.getElementById('new_game').disabled = true;
+}
+
+/**
+ * Settles the bet (only once per round).
+ * The bet was already taken in startRound: a win returns double, a draw returns the bet.
+ * @param {Object} state - The current state of the game.
+ * @returns {number} - Chips won (+) or lost (-).
+ */
+function settleBet(state) {
+    if (roundSettled) {
+        return roundNet;
+    }
+    roundSettled = true;
+
+    let payout = 0;
+    if (state.playerWon) {
+        payout = currentBet * 2;
+    } else if (!state.dealerWon) {
+        payout = currentBet; // Draw
+    }
+
+    wallet.add(payout);
+    roundNet = payout - currentBet;
+    renderChips();
+    renderShop();
+    return roundNet;
+}
+
+/**
+ * Formats the chips won or lost in a round.
+ * @param {number} net - Chips won (+) or lost (-).
+ * @returns {string}
+ */
+function formatNet(net) {
+    if (net > 0) return `(+${net} fichas)`;
+    if (net < 0) return `(${net} fichas)`;
+    return '(aposta devolvida)';
+}
+
+/**
+ * Activates an unlocked theme.
+ * @param {string} id - The theme id.
+ */
+function selectTheme(id) {
+    if (wallet.select(id)) {
+        applyTheme();
+        renderShop();
+    }
+}
+
+/**
+ * Buys (unlocks) a theme and activates it.
+ * @param {string} id - The theme id.
+ */
+function buyTheme(id) {
+    if (wallet.buy(id)) {
+        applyTheme();
+        renderChips();
+        renderShop();
+    }
+}
+
+/**
+ * Builds the list of themes in the shop.
+ */
+function renderShop() {
+    document.getElementById('shop-chips').textContent = wallet.chips;
+    const list = document.getElementById('shop-list');
+    list.replaceChildren();
+
+    THEMES.forEach(theme => {
+        const owned = wallet.owns(theme.id);
+        const active = wallet.theme === theme.id;
+
+        const item = document.createElement('div');
+        item.className = 'shop-item' + (active ? ' is-active' : '');
+
+        const swatch = document.createElement('span');
+        swatch.className = 'shop-swatch';
+        swatch.style.background = `linear-gradient(145deg, ${theme.swatch[0]}, ${theme.swatch[1]})`;
+        swatch.style.color = theme.accent;
+        const icon = document.createElement('i');
+        icon.className = `bi ${theme.brandIcon}`;
+        swatch.appendChild(icon);
+
+        const info = document.createElement('div');
+        const name = document.createElement('div');
+        name.className = 'shop-name';
+        name.style.fontFamily = theme.font; // Shows the theme's own typography
+        name.textContent = theme.name;
+        const desc = document.createElement('div');
+        desc.className = 'shop-desc';
+        desc.textContent = theme.desc;
+        const cost = document.createElement('div');
+        cost.className = 'shop-cost';
+        cost.textContent = owned ? 'Desbloqueado' : `${theme.cost} fichas`;
+        info.append(name, desc, cost);
+
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'btn button ' + (owned ? 'button-secondary' : 'button-primary');
+        button.textContent = active ? 'Em uso' : owned ? 'Usar' : 'Comprar';
+        button.disabled = active || (!owned && wallet.chips < theme.cost);
+        button.onclick = () => (owned ? selectTheme(theme.id) : buyTheme(theme.id));
+
+        item.append(swatch, info, button);
+        list.appendChild(item);
+    });
+}
+
+/**
+ * Prepares a new round: shows the betting phase.
  */
 function newGame() {
     game = new Blackjack(); // Creates a new instance of the Blackjack game
+    dealerPlaying = false;
     clearPage();
+    applyTheme();
+
+    const rescued = wallet.rescueIfBroke();
+    changeBet(0); // Adjusts the previous bet to what can still be wagered
+    renderChips();
+    renderShop();
+
+    bettingButtons();
+    document.getElementById('bet-panel').hidden = false;
+
+    const status = document.getElementById('game_status');
+    status.textContent = rescued
+        ? `Ficaste sem fichas! Recebes ${Wallet.START_CHIPS} para continuar. Faz a tua aposta.`
+        : 'Faz a tua aposta.';
+}
+
+/**
+ * Takes the bet and deals the initial cards.
+ */
+function startRound() {
+    if (!game || !wallet.placeBet(currentBet)) {
+        return;
+    }
+    roundSettled = false;
+    roundNet = 0;
+    renderChips();
+
+    document.getElementById('bet-panel').hidden = true;
     buttonsInitialization();
+
     game.playerCards.push(game.deck.pop(), game.deck.pop());
     game.dealerCards.push(game.deck.pop(), game.deck.pop());
 
@@ -98,6 +292,7 @@ function finalScore(state) {
     if (state.gameEnded){
         finalizeButtons();
         updateDealer(state);
+        const net = settleBet(state);
 
         if (state.playerBusted){
             status.textContent = `Ultrapassaste os ${Blackjack.MAX_POINTS} pontos. O dealer venceu!`;
@@ -117,6 +312,7 @@ function finalScore(state) {
             status.textContent = `Empate! Ambos ficaram com ${playerValue} pontos.`;
             status.className = 'game-status result-draw';
         }
+        status.textContent += ` ${formatNet(net)}`;
         return;
     }
 
