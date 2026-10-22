@@ -1,7 +1,24 @@
 // Blackjack wallet: fichas, temas desbloqueáveis e tema ativo
 
-// O 'id' tem de coincidir com [data-theme="..."] no CSS.
-// Cada tema muda o visual todo (cores, tipografia, texturas, animações e ícones).
+/**
+ * A visual theme that can be unlocked in the shop.
+ * @typedef {Object} Theme
+ * @property {string} id - Unique id, also used as the value of the data-theme attribute.
+ * @property {string} name - Name shown in the shop.
+ * @property {number} cost - Price in chips (0 = free).
+ * @property {string} desc - Short description shown in the shop.
+ * @property {string} font - CSS font-family used to preview the theme's typography.
+ * @property {string[]} swatch - Two CSS colors that form the preview gradient.
+ * @property {string} accent - CSS color of the preview icon.
+ * @property {string} brandIcon - Bootstrap Icons class for the header and shop icon.
+ * @property {string} dividerIcon - Bootstrap Icons class for the table divider.
+ * @property {string} tagline - Text shown in the header note.
+ */
+ 
+/**
+ * All the themes available in the shop. The first one is the free default.
+ * @type {Theme[]}
+ */
 const THEMES = [
     {
         id: 'verde', name: 'Clássico', cost: 0,
@@ -46,22 +63,50 @@ const THEMES = [
 ];
 
 /**
- * Guarda as fichas, os temas desbloqueados e o tema ativo.
+ * Stores the chips, the unlocked themes and the active theme.
+ * The state is persisted in localStorage.
  */
 class Wallet {
+    /**
+     * Chips given at the start (and when the player goes broke).
+     * @type {number}
+     */
     static START_CHIPS = 100;
+    /**
+     * Minimum bet allowed.
+     * @type {number}
+     */
     static MIN_BET = 10;
+    /**
+     * Step used when changing the bet; bets are always multiples of it.
+     * @type {number}
+     */
     static BET_STEP = 10;
+     /**
+     * Key under which the wallet is saved in localStorage.
+     * @type {string}
+     */
     static STORAGE_KEY = 'blackjack25.wallet';
 
+    /**
+     * Creates a wallet with the start chips and the default theme,
+     * then loads any saved state from localStorage.
+     */
     constructor() {
+        /** @type {number} Chips currently owned. */
         this.chips = Wallet.START_CHIPS;
+        /** @type {string[]} Ids of the unlocked themes. */
         this.unlocked = ['verde'];
+        /** @type {string} Id of the active theme. */
         this.theme = 'verde';
         this.load();
     }
 
-    /** Lê o estado guardado no localStorage (se existir e for válido). */
+    /**
+     * Loads the saved state from localStorage (if it exists and is valid).
+     * Invalid or unavailable data is ignored and the defaults are kept.
+     * @returns {void}
+     */
     load() {
         try {
             const data = JSON.parse(localStorage.getItem(Wallet.STORAGE_KEY));
@@ -75,7 +120,11 @@ class Wallet {
         } catch (e) { /* localStorage indisponível ou corrompido: começa de novo */ }
     }
 
-    /** Grava o estado no localStorage. */
+    /**
+     * Saves the state (chips, unlocked themes and active theme) in localStorage.
+     * Failures are ignored.
+     * @returns {void}
+     */
     save() {
         try {
             localStorage.setItem(Wallet.STORAGE_KEY, JSON.stringify({
@@ -85,18 +134,18 @@ class Wallet {
     }
 
     /**
-     * Indica se a aposta é válida.
-     * @param {number} amount - Valor da aposta.
-     * @returns {boolean}
+     * Checks whether a bet is valid.
+     * @param {number} amount - The bet amount.
+     * @returns {boolean} - True if the bet is an integer, at least MIN_BET and not above the chips owned.
      */
     canBet(amount) {
         return Number.isInteger(amount) && amount >= Wallet.MIN_BET && amount <= this.chips;
     }
 
     /**
-     * Retira a aposta das fichas.
-     * @param {number} amount - Valor da aposta.
-     * @returns {boolean} - True se a aposta foi feita.
+     * Takes a bet out of the chips.
+     * @param {number} amount - The bet amount.
+     * @returns {boolean} - True if the bet was placed.
      */
     placeBet(amount) {
         if (!this.canBet(amount)) return false;
@@ -106,22 +155,28 @@ class Wallet {
     }
 
     /**
-     * Adiciona fichas (prémio ou devolução da aposta).
-     * @param {number} amount - Fichas a adicionar.
+     * Adds chips (prize or returned bet).
+     * @param {number} amount - Chips to add.
+     * @returns {void}
      */
     add(amount) {
         this.chips += amount;
         this.save();
     }
 
-    /** @returns {boolean} - True se o tema já está desbloqueado. */
+    /** 
+     * Checks whether a theme is already unlocked.
+     * @param {string} themeId - The id of the theme to check.
+     * @returns {boolean} - True if the theme is unlocked.
+     */
     owns(themeId) {
         return this.unlocked.includes(themeId);
     }
 
     /**
-     * Compra (desbloqueia) um tema e ativa-o.
-     * @returns {boolean} - True se a compra foi feita.
+     * Buys (unlocks) a theme and activates it.
+     * @param {string} themeId - The id of the theme to buy.
+     * @returns {boolean} - True if the purchase was made (false if unknown, already owned or too expensive).
      */
     buy(themeId) {
         const theme = THEMES.find(t => t.id === themeId);
@@ -134,8 +189,9 @@ class Wallet {
     }
 
     /**
-     * Ativa um tema já desbloqueado.
-     * @returns {boolean}
+     * Activates an already unlocked theme.
+     * @param {string} themeId - The id of the theme to activate.
+     * @returns {boolean} - True if the theme was activated (false if it is not unlocked).
      */
     select(themeId) {
         if (!this.owns(themeId)) return false;
@@ -145,8 +201,8 @@ class Wallet {
     }
 
     /**
-     * Se já não der para apostar o mínimo, recomeça com as fichas iniciais (mantém os temas).
-     * @returns {boolean} - True se houve recomeço.
+     * If the minimum bet can no longer be placed, restarts with the start chips (keeps the themes).
+     * @returns {boolean} - True if the chips were restarted.
      */
     rescueIfBroke() {
         if (this.chips >= Wallet.MIN_BET) return false;

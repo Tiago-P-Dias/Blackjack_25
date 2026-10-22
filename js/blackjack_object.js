@@ -4,14 +4,6 @@
  * Class that represents a single playing card.
  */
 class Card {
-    // Cards whose image file has the "2" suffix in the img/svg folder
-    static SECOND_VERSION = new Set([
-        'ace_of_spades',
-        'jack_of_clubs', 'jack_of_diamonds', 'jack_of_hearts', 'jack_of_spades',
-        'queen_of_clubs', 'queen_of_diamonds', 'queen_of_hearts', 'queen_of_spades',
-        'king_of_clubs', 'king_of_diamonds', 'king_of_hearts', 'king_of_spades'
-    ]);
- 
     /**
      * Creates a card.
      * @param {string} rank - 'ace', '2' to '10', 'jack', 'queen' or 'king'.
@@ -47,7 +39,7 @@ class Card {
      */
     static imagePath(rank, suit) {
         const baseName = `${rank}_of_${suit}`;
-        const imageName = Card.SECOND_VERSION.has(baseName) ? `${baseName}2.svg` : `${baseName}.svg`;
+        const imageName = `${baseName}.svg`;
         return `img/svg/${imageName}`;
     }
  
@@ -148,7 +140,7 @@ class Blackjack {
      */
     getCardsValue(cards) {
         let total = cards.reduce((sum, card) => sum + card.value, 0);  // o total começa em 0 soma o valor da carta e os Áses valem 11
-        let aces = cards.filter(card => card.rank === 'ace').length; // vê quantos Áses há na mão 
+        let aces = cards.filter(card => card.isAce()).length; // vê quantos Áses há na mão 
 
         while(total > Blackjack.MAX_POINTS && aces > 0){ // se o total for maior que a pontuação e houverem ases, eles passam a valer 1
             total -= 10;
@@ -216,7 +208,7 @@ class Blackjack {
         const playerBusted = playerValue > Blackjack.MAX_POINTS;
         const dealerBusted = dealerValue > Blackjack.MAX_POINTS;
         const playerReachedMaxPoints = playerValue === Blackjack.MAX_POINTS;
-        const dealerFinish = this.dealerTurn && (dealerValue >= Blackjack.DEALER_MAX_TURN_POINTS || dealerValue > playerValue );
+        const dealerFinish = this.dealerTurn && (dealerValue >= Blackjack.DEALER_MAX_TURN_POINTS || dealerValue >= playerValue);
         const gameEnded = playerBusted || dealerBusted || playerReachedMaxPoints || dealerFinish || this.deck.length === 0;
 
         this.state = {
