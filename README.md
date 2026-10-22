@@ -22,7 +22,8 @@
 ├── js/
 │   ├── blackjack_object.js   # OOP Classes (Card & Blackjack game logic)
 │   └── blackjack_manager.js  # DOM manipulation, turn flow, and animations
-|   └── cookie_consent.js     
+|   └── blackjack_themes.js
+|   └── blackjack_wallet.js 
 ├── css/
 │   └── blackjack_style.css   # Custom table styling, theme variables, and animations
 └── img/
