@@ -1,9 +1,8 @@
-
 /**
  * The current instance of the game.
  * @type {Blackjack|null}
  */
-let game = null; 
+let game = null;
 
 /**
  * True while the dealer plays his turn step by step.
@@ -12,34 +11,22 @@ let game = null;
 let dealerPlaying = false;
 
 /**
- * Chips, unlocked themes and active theme.
+ * Chips, unlocked themes, active theme and bet of the round.
  * @type {Wallet}
  */
-const wallet = new Wallet(); 
+const wallet = new Wallet();
 
 /**
- * Bet chosen for the current round.
- * @type {number}
+ * Key under which the round in progress is saved in localStorage.
+ * @type {string}
  */
-let currentBet = Wallet.MIN_BET;
-
-/**
- * Guarantees the bet is settled only once per round.
- * @type {boolean}
- */
-let roundSettled = false; 
-
-/**
- * Chips won (+) or lost (-) in the current round.
- * @type {number}
- */
-let roundNet = 0; 
+const GAME_STORAGE_KEY = 'blackjack25.game';
 
 /**
  * Delay between cards dealt in the same update, in milliseconds.
  * @type {number}
  */
-const DEAL_STEP_MS = 300; 
+const DEAL_STEP_MS = 300;
 
 /**
  * Duration of the flip of the dealer's hidden card, in milliseconds.
@@ -51,7 +38,7 @@ const FLIP_MS = 600;
  * Pause after each card drawn by the dealer, in milliseconds.
  * @type {number}
  */
-const DEALER_STEP_MS = 800; 
+const DEALER_STEP_MS = 800;
 
 /**
  * Waits for the given time.
@@ -60,6 +47,57 @@ const DEALER_STEP_MS = 800;
  */
 function wait(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Fills the values shown in the page text (elements with a data-const attribute)
+ * from the game constants, so the rules never get out of sync with the code.
+ * @returns {void}
+ */
+function renderConstants() {
+    const values = {
+        maxPoints: Blackjack.MAX_POINTS,
+        dealerPoints: Blackjack.DEALER_MAX_TURN_POINTS,
+        startChips: Wallet.START_CHIPS,
+        minBet: Wallet.MIN_BET
+    };
+
+    document.querySelectorAll('[data-const]').forEach(element => {
+        element.textContent = values[element.dataset.const];
+    });
+}
+
+/**
+ * Connects the buttons of the page to the controller functions.
+ * The bet buttons carry their step in data-bet-step (-1, 1 or 'max') and use Wallet.BET_STEP.
+ * @returns {void}
+ */
+function setupEvents() {
+    document.getElementById('card').addEventListener('click', playerNewCard);
+    document.getElementById('stand').addEventListener('click', dealerFinish);
+    document.getElementById('new_game').addEventListener('click', prepareBetting);
+    document.getElementById('deal').addEventListener('click', newGame);
+
+    document.querySelectorAll('[data-bet-step]').forEach(button => {
+        button.addEventListener('click', () => {
+            const step = button.dataset.betStep;
+            changeBet(step === 'max' ? 'max' : Number(step) * Wallet.BET_STEP);
+        });
+    });
+}
+
+/**
+ * Initializes the page: fills the rule values, connects the buttons and shows the saved state.
+ * If a round was in progress (or just finished) when the page was closed, it is restored as it was;
+ * otherwise it shows the betting phase.
+ * @returns {void}
+ */
+function initPage() {
+    renderConstants();
+    setupEvents();
+    if (!restoreRound()) {
+        prepareBetting();
+    }
 }
 
 /**
@@ -129,7 +167,7 @@ function clearPage() {
  */
 function renderChips() {
     document.getElementById('chips').textContent = wallet.chips;
-    
+
 }
 
 /**
@@ -154,21 +192,16 @@ function applyTheme() {
  * @returns {void}
  */
 function renderBet() {
-    document.getElementById('bet-amount').textContent = currentBet;
+    document.getElementById('bet-amount').textContent = wallet.bet;
 }
 
 /**
- * Changes the bet in steps, or sets the maximum with 'max'.
- * The result is rounded to a multiple of Wallet.BET_STEP and kept between
- * Wallet.MIN_BET and what the player can still wager.
+ * Asks the wallet to change the bet (in steps, or to the maximum with 'max') and shows the result.
  * @param {number|string} change - Amount to add (can be negative) or 'max'.
  * @returns {void}
  */
 function changeBet(change) {
-    const maxBet = Math.max(Wallet.MIN_BET, Math.floor(wallet.chips / Wallet.BET_STEP) * Wallet.BET_STEP);
-    const wanted = change === 'max' ? wallet.chips : currentBet + change;
-    const rounded = Math.floor(wanted / Wallet.BET_STEP) * Wallet.BET_STEP;
-    currentBet = Math.min(Math.max(rounded, Wallet.MIN_BET), maxBet);
+    wallet.changeBet(change);
     renderBet();
 }
 
@@ -183,29 +216,44 @@ function bettingButtons() {
 }
 
 /**
- * Settles the bet (only once per round).
- * The bet was already taken in startRound: a win returns double, a draw returns the bet.
+ * Shows the betting phase (before the first game and when "new round" is chosen):
+ * clears the table and the saved game, rescues a broke player and shows the betting panel.
+ * The game itself is created and dealt by newGame(), when the player chooses "deal".
+ * @returns {void}
+ */
+function prepareBetting() {
+    game = null;
+    dealerPlaying = false;
+    try {
+        localStorage.removeItem(GAME_STORAGE_KEY); // A reload now goes back to the betting phase
+    } catch (e) { /* ignored */ }
+    clearPage();
+    applyTheme();
+
+    const rescued = wallet.rescueIfBroke();
+    changeBet(0); // Adjusts the previous bet to what can still be wagered
+    renderChips();
+    renderShop();
+
+    bettingButtons();
+    document.getElementById('bet-panel').hidden = false;
+
+    const status = document.getElementById('game_status');
+    status.textContent = rescued
+        ? `Ficaste sem fichas! Recebes ${Wallet.START_CHIPS} para continuar. Faz a tua aposta.`
+        : 'Faz a tua aposta.';
+}
+
+/**
+ * Asks the wallet to settle the bet (it only counts once per round) and refreshes the chips and the shop.
  * @param {GameState} state - The current state of the game.
  * @returns {number} - Chips won (+) or lost (-) in the round.
  */
 function settleBet(state) {
-    if (roundSettled) {
-        return roundNet;
-    }
-    roundSettled = true;
-
-    let payout = 0;
-    if (state.playerWon) {
-        payout = currentBet * 2;
-    } else if (!state.dealerWon) {
-        payout = currentBet; // Draw
-    }
-
-    wallet.add(payout);
-    roundNet = payout - currentBet;
+    const net = wallet.settle(state);
     renderChips();
     renderShop();
-    return roundNet;
+    return net;
 }
 
 /**
@@ -256,6 +304,7 @@ function renderShop() {
     THEMES.forEach(theme => {
         const owned = wallet.owns(theme.id);
         const active = wallet.theme === theme.id;
+        const price = wallet.themeCost(theme.id);
 
         const item = document.createElement('div');
         item.className = 'shop-item' + (active ? ' is-active' : '');
@@ -278,15 +327,15 @@ function renderShop() {
         desc.textContent = theme.desc;
         const cost = document.createElement('div');
         cost.className = 'shop-cost';
-        cost.textContent = owned ? 'Desbloqueado' : `${theme.cost} fichas`;
+        cost.textContent = owned ? 'Desbloqueado' : `${price} fichas`;
         info.append(name, desc, cost);
 
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'btn button ' + (owned ? 'button-secondary' : 'button-primary');
         button.textContent = active ? 'Em uso' : owned ? 'Usar' : 'Comprar';
-        button.disabled = active || (!owned && wallet.chips < theme.cost);
-        button.onclick = () => (owned ? selectTheme(theme.id) : buyTheme(theme.id));
+        button.disabled = active || (!owned && wallet.chips < price);
+        button.addEventListener('click', () => (owned ? selectTheme(theme.id) : buyTheme(theme.id)));
 
         item.append(swatch, info, button);
         list.appendChild(item);
@@ -294,67 +343,115 @@ function renderShop() {
 }
 
 /**
- * Prepares a new round: creates a new game, clears the table, rescues a broke player
- * and shows the betting phase.
+ * Saves the current game in localStorage, so a round survives a page reload.
+ * Failures (e.g. localStorage unavailable) are ignored.
  * @returns {void}
  */
-function newGame() {
-    game = new Blackjack(); // Creates a new instance of the Blackjack game
-    dealerPlaying = false;
-    clearPage();
-    applyTheme();
-
-    const rescued = wallet.rescueIfBroke();
-    changeBet(0); // Adjusts the previous bet to what can still be wagered
-    renderChips();
-    renderShop();
-
-    bettingButtons();
-    document.getElementById('bet-panel').hidden = false;
-
-    const status = document.getElementById('game_status');
-    status.textContent = rescued
-        ? `Ficaste sem fichas! Recebes ${Wallet.START_CHIPS} para continuar. Faz a tua aposta.`
-        : 'Faz a tua aposta.';
+function saveGame() {
+    try {
+        localStorage.setItem(GAME_STORAGE_KEY, JSON.stringify(game.serialize()));
+    } catch (e) { /* ignored */ }
 }
 
 /**
- * Takes the bet, hides the betting panel and deals the initial cards.
- * Does nothing if there is no game or the bet is not valid.
+ * Reads the saved game from localStorage.
+ * @returns {Blackjack|null} - The restored game, or null if there is none or the data is not valid.
+ */
+function loadSavedGame() {
+    try {
+        return Blackjack.restore(JSON.parse(localStorage.getItem(GAME_STORAGE_KEY)));
+    } catch (e) {
+        return null;
+    }
+}
+
+/**
+ * Puts back on the table the game that was saved before the page was closed:
+ * the cards, the scores, the hidden card (if the dealer had not started playing),
+ * the status message and the buttons. If the dealer was in the middle of his turn,
+ * he carries on playing. A finished game is shown with its result.
+ * @returns {boolean} - True if a game was restored (false if there was none, or it does not match the wallet).
+ */
+function restoreRound() {
+    const restored = loadSavedGame();
+    if (!restored) {
+        return false;
+    }
+
+    const state = restored.getGameState();
+    if (!state.gameEnded && wallet.roundSettled) {
+        return false; // A round in progress must have a bet that was taken: the saved data do not match
+    }
+
+    game = restored;
+    dealerPlaying = false;
+    clearPage();
+    applyTheme();
+    renderChips();
+    renderShop();
+    renderBet();
+    document.getElementById('bet-panel').hidden = true;
+
+    updatePlayer(state);
+    updateDealer(state);
+    updateStatus(state); // If the game had ended, it shows the result and enables "new round"
+
+    if (!state.gameEnded) {
+        buttonsInitialization();
+        if (game.isDealerTurn()) {
+            dealerFinish(); // The dealer carries on from where he stopped
+        }
+    }
+    return true;
+}
+
+/**
+ * Starts a new game: takes the bet, creates a new game, clears the table,
+ * hides the betting panel and deals the initial cards (two for the player and two for the dealer).
+ * The dealer's 2nd card is printed face down, and only his 1st card counts for his score.
+ * The game is saved right away, so it is still there after reloading the page.
+ * Does nothing while a game is still being played or if the bet is not valid.
  * @returns {void}
  */
-function startRound() {
-    if (!game || !wallet.placeBet(currentBet)) {
+function newGame() {
+    if (game && !game.getGameState().gameEnded) {
+        return; // The current game has not ended yet
+    }
+
+    if (!wallet.placeBet()) {
         return;
     }
-    roundSettled = false;
-    roundNet = 0;
+
+    game = new Blackjack(); // Creates a new instance of the Blackjack game
+    dealerPlaying = false;
+    clearPage();
     renderChips();
 
     document.getElementById('bet-panel').hidden = true;
     buttonsInitialization();
 
-    const state = game.dealInitialCards();;
+    const state = game.dealInitialCards();
     updatePlayer(state);
-    updateDealer(state, DEAL_STEP_MS / 2);
-    finalScore(state);
+    updateDealer(state, DEAL_STEP_MS / 2); // Prints the 2nd card of the dealer face down
+    updateStatus(state);
+    saveGame();
 }
 
 /**
  * Updates the status message in every turn (player's turn, dealer's turn and end of game).
- * When the game has ended it also reveals the dealer's hand, settles the bet,
- * appends the chips won or lost and enables the "new round" button.
+ * When the game has ended it also settles the bet, appends the chips won or lost
+ * and finalizes the buttons (the only place where this happens).
+ * The cards and result tags are drawn by updatePlayer() and updateDealer().
  * @param {GameState} state - The current state of the game.
  * @returns {void}
  */
-function finalScore(state) {
+function updateStatus(state) {
     const status = document.getElementById('game_status');
     const playerValue = game.getCardsValue(game.getPlayerCards());
     const dealerValue = game.getCardsValue(game.getDealerCards());
 
     if (state.gameEnded){
         finalizeButtons();
-        updateDealer(state);
         const net = settleBet(state);
 
         if (state.playerBusted){
@@ -379,7 +476,7 @@ function finalScore(state) {
         return;
     }
 
-    status.textContent = game.dealerTurn 
+    status.textContent = game.isDealerTurn()
         ? `É a vez do dealer - tens ${playerValue} pontos e o dealer tem ${dealerValue} pontos.`
         : `É a tua vez - tens ${playerValue} pontos.`
     status.className = 'game-status';
@@ -396,10 +493,10 @@ function finalScore(state) {
 function updateDealer(state, delayOffset = 0) {
     const dealerElement = document.getElementById('dealer');
     const cards = game.getDealerCards();
-    const revealAll = game.dealerTurn || state.gameEnded;
+    const revealAll = game.isDealerTurn() || state.gameEnded;
     const shown = dealerElement.children.length;
 
-    for(let index = shown; index < cards.length; index++){ 
+    for(let index = shown; index < cards.length; index++){
         const delay = delayOffset + (index - shown) * DEAL_STEP_MS;
         printCard(dealerElement, cards[index], index === 1 && !revealAll, delay);
     }
@@ -413,7 +510,7 @@ function updateDealer(state, delayOffset = 0) {
 
     const visibleCards = revealAll ? cards : cards.slice(0, 1);
     document.getElementById('dealer-score').textContent = String(game.getCardsValue(visibleCards));
- 
+
     if (state.gameEnded) {
         if (state.dealerWon) {
             setResultTag('dealer-result', 'Ganhou', 'result-win');
@@ -424,7 +521,6 @@ function updateDealer(state, delayOffset = 0) {
         } else {
             setResultTag('dealer-result', 'Empate', 'result-draw');
         }
-        finalizeButtons();
     } else {
         setResultTag('dealer-result', '');
     }
@@ -440,13 +536,13 @@ function updatePlayer(state) {
     const playerElement = document.getElementById('player');
     const cards = game.getPlayerCards();
     const shown = playerElement.children.length; // Cards already on the table
- 
+
     for (let index = shown; index < cards.length; index++) {
         printCard(playerElement, cards[index], false, (index - shown) * DEAL_STEP_MS);
     }
- 
+
     document.getElementById('player-score').textContent = String(game.getCardsValue(cards));
- 
+
     if (state.gameEnded && !dealerPlaying) {
         if (state.playerWon) {
             setResultTag('player-result', 'Ganhaste', 'result-win');
@@ -457,28 +553,25 @@ function updatePlayer(state) {
         } else {
             setResultTag('player-result', 'Empate', 'result-draw');
         }
-        finalizeButtons();
     } else {
         setResultTag('player-result', '');
     }
 }
 
 /**
- * Causes the dealer to draw a new card and updates the interface.
+ * Causes the dealer to draw a new card, updates the interface and saves the game.
  * @returns {GameState} - The game state after the dealer's move.
  */
 function dealerNewCard() {
     const state = game.dealerMove();
     updateDealer(state);
-    if (state.gameEnded) {
-        updatePlayer(state); // Shows the player's result too
-    }
-    finalScore(state);
+    updateStatus(state);
+    saveGame();
     return state;
 }
 
 /**
- * Causes the player to draw a new card and updates the interface.
+ * Causes the player to draw a new card, updates the interface and saves the game.
  * @returns {GameState} - The game state after the player's move.
  */
 function playerNewCard() {
@@ -487,7 +580,8 @@ function playerNewCard() {
     if (state.gameEnded) {
         updateDealer(state); // Reveals the dealer's hidden card and shows his result
     }
-    finalScore(state);
+    updateStatus(state);
+    saveGame();
     return state;
 }
 
@@ -501,17 +595,18 @@ async function dealerFinish() {
     if (!game || dealerPlaying || game.getGameState().gameEnded) {
         return;
     }
- 
+
     const currentGame = game; // Used to stop if a new game starts in the meantime
     dealerPlaying = true;
     lockPlayerButtons();
- 
+
     game.setDealerTurn(true); // From now on the dealer plays
+    saveGame(); // From now on a reload goes back to the dealer's turn
     let state = game.getGameState();
     updateDealer(state); // Flips the hidden card
-    finalScore(state);
+    updateStatus(state);
     await wait(FLIP_MS + 300);
- 
+
     // The dealer keeps drawing, one card at a time, until the game ends
     while (!state.gameEnded) {
         if (game !== currentGame) {
@@ -520,16 +615,14 @@ async function dealerFinish() {
         state = dealerNewCard();
         await wait(DEALER_STEP_MS);
     }
- 
+
     if (game !== currentGame) {
         return;
     }
- 
-    // All the cards are on the table: show the final result
+
+    // All the cards are on the table: now the player's result tag can be shown
     dealerPlaying = false;
-    updateDealer(state);
     updatePlayer(state);
-    finalScore(state);
 }
 
 /**
@@ -544,29 +637,29 @@ async function dealerFinish() {
 function printCard(element, card, hidden = false, delay = 0) {
     const cardName = `${card.rank} of ${card.suit}`;
     let cardElement;
- 
+
     if (hidden) {
         cardElement = document.createElement('div');
         cardElement.className = 'playing-card card-flip';
         cardElement.setAttribute('role', 'img');
         cardElement.setAttribute('aria-label', 'Carta virada para baixo');
         cardElement.dataset.label = cardName; // Used as the description after the flip
- 
+
         const inner = document.createElement('div');
         inner.className = 'card-inner';
- 
+
         const back = document.createElement('img');
         back.className = 'card-face card-back';
         back.alt = '';
-        back.src = 'img/svg/card_back.svg';
+        back.src = Card.BACK_IMAGE;
         back.draggable = false;
- 
+
         const front = document.createElement('img');
         front.className = 'card-face card-front';
         front.alt = '';
         front.src = card.image;
         front.draggable = false;
- 
+
         inner.appendChild(back);
         inner.appendChild(front);
         cardElement.appendChild(inner);
@@ -577,7 +670,7 @@ function printCard(element, card, hidden = false, delay = 0) {
         cardElement.src = card.image;
         cardElement.draggable = false;
     }
- 
+
     cardElement.style.animationDelay = `${delay}ms`;
     element.appendChild(cardElement);
 }
@@ -591,3 +684,5 @@ function flipCard(cardElement) {
     cardElement.classList.add('is-flipped');
     cardElement.setAttribute('aria-label', cardElement.dataset.label);
 }
+
+window.addEventListener('DOMContentLoaded', initPage);

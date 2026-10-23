@@ -1,69 +1,6 @@
-// Blackjack wallet: fichas, temas desbloqueáveis e tema ativo
 
 /**
- * A visual theme that can be unlocked in the shop.
- * @typedef {Object} Theme
- * @property {string} id - Unique id, also used as the value of the data-theme attribute.
- * @property {string} name - Name shown in the shop.
- * @property {number} cost - Price in chips (0 = free).
- * @property {string} desc - Short description shown in the shop.
- * @property {string} font - CSS font-family used to preview the theme's typography.
- * @property {string[]} swatch - Two CSS colors that form the preview gradient.
- * @property {string} accent - CSS color of the preview icon.
- * @property {string} brandIcon - Bootstrap Icons class for the header and shop icon.
- * @property {string} dividerIcon - Bootstrap Icons class for the table divider.
- * @property {string} tagline - Text shown in the header note.
- */
- 
-/**
- * All the themes available in the shop. The first one is the free default.
- * @type {Theme[]}
- */
-const THEMES = [
-    {
-        id: 'verde', name: 'Clássico', cost: 0,
-        desc: 'A mesa de feltro verde tradicional.',
-        font: '"Segoe UI", Arial, sans-serif',
-        swatch: ['#1b5945', '#123a30'], accent: '#d7b56d',
-        brandIcon: 'bi-suit-spade-fill', dividerIcon: 'bi-gem',
-        tagline: 'Que a sorte esteja do teu lado'
-    },
-    {
-        id: 'arcade', name: 'Arcade', cost: 150,
-        desc: 'Pixéis, scanlines de CRT e sombras duras.',
-        font: '"Press Start 2P", "Courier New", monospace',
-        swatch: ['#26216a', '#0a0820'], accent: '#ffe135',
-        brandIcon: 'bi-controller', dividerIcon: 'bi-joystick',
-        tagline: 'Insere uma moeda e joga'
-    },
-    {
-        id: 'oceano', name: 'Fundo do Mar', cost: 300,
-        desc: 'Bolhas a subir, raios de luz e ondas na mesa.',
-        font: '"Fredoka", "Segoe UI", sans-serif',
-        swatch: ['#12809c', '#032a3d'], accent: '#ffcf6b',
-        brandIcon: 'bi-water', dividerIcon: 'bi-droplet-fill',
-        tagline: 'A sorte vem com a maré'
-    },
-    {
-        id: 'neon', name: 'Las Vegas Neon', cost: 600,
-        desc: 'Néon, grelha em movimento e letreiro a piscar.',
-        font: '"Orbitron", "Segoe UI", sans-serif',
-        swatch: ['#ff2bd6', '#06010e'], accent: '#5ff4ff',
-        brandIcon: 'bi-lightning-charge-fill', dividerIcon: 'bi-suit-diamond-fill',
-        tagline: 'As luzes nunca se apagam'
-    },
-    {
-        id: 'espaco', name: 'Galáxia', cost: 1200,
-        desc: 'Estrelas a cintilar, nebulosas e estrela cadente.',
-        font: '"Exo 2", "Segoe UI", sans-serif',
-        swatch: ['#2a1d63', '#05030f'], accent: '#8fd8ff',
-        brandIcon: 'bi-moon-stars-fill', dividerIcon: 'bi-stars',
-        tagline: 'Que a sorte seja estelar'
-    }
-];
-
-/**
- * Stores the chips, the unlocked themes and the active theme.
+ * Stores the chips, the unlocked themes, the active theme, the chosen bet and the bet of the round in progress.
  * The state is persisted in localStorage.
  */
 class Wallet {
@@ -82,11 +19,27 @@ class Wallet {
      * @type {number}
      */
     static BET_STEP = 10;
-     /**
+    /**
      * Key under which the wallet is saved in localStorage.
      * @type {string}
      */
     static STORAGE_KEY = 'blackjack25.wallet';
+    /**
+     * Id of the free theme that is always unlocked.
+     * @type {string}
+     */
+    static DEFAULT_THEME = 'verde';
+    /**
+     * Price in chips of each theme, by theme id.
+     * @type {Object<string, number>}
+     */
+    static THEME_COSTS = {
+        verde: 0,
+        arcade: 150,
+        oceano: 300,
+        neon: 600,
+        espaco: 1200
+    };
 
     /**
      * Creates a wallet with the start chips and the default theme,
@@ -96,15 +49,24 @@ class Wallet {
         /** @type {number} Chips currently owned. */
         this.chips = Wallet.START_CHIPS;
         /** @type {string[]} Ids of the unlocked themes. */
-        this.unlocked = ['verde'];
+        this.unlocked = [Wallet.DEFAULT_THEME];
         /** @type {string} Id of the active theme. */
-        this.theme = 'verde';
+        this.theme = Wallet.DEFAULT_THEME;
+        /** @type {number} Bet chosen for the next round. */
+        this.bet = Wallet.MIN_BET;
+        /** @type {number} Bet taken out of the chips in the current round. */
+        this.roundBet = 0;
+        /** @type {boolean} True when the current round has no bet left to settle. */
+        this.roundSettled = true;
+        /** @type {number} Chips won (+) or lost (-) in the current round. */
+        this.roundNet = 0;
         this.load();
     }
 
     /**
      * Loads the saved state from localStorage (if it exists and is valid).
-     * Invalid or unavailable data is ignored and the defaults are kept.
+     * Each value is checked on its own: invalid or unavailable data is ignored and the default is kept.
+     * It only uses the wallet's own data (not THEMES), so it does not depend on the order of the scripts.
      * @returns {void}
      */
     load() {
@@ -113,24 +75,34 @@ class Wallet {
             if (!data) return;
             if (Number.isInteger(data.chips) && data.chips >= 0) this.chips = data.chips;
             if (Array.isArray(data.unlocked)) {
-                this.unlocked = data.unlocked.filter(id => THEMES.some(t => t.id === id));
-                if (!this.unlocked.includes('verde')) this.unlocked.push('verde');
+                this.unlocked = data.unlocked.filter(id => Wallet.isTheme(id));
+                if (!this.unlocked.includes(Wallet.DEFAULT_THEME)) this.unlocked.push(Wallet.DEFAULT_THEME);
             }
             if (this.unlocked.includes(data.theme)) this.theme = data.theme;
-        } catch (e) { /* localStorage indisponível ou corrompido: começa de novo */ }
+            if (Number.isInteger(data.bet) && data.bet >= Wallet.MIN_BET) this.bet = data.bet;
+            if (Number.isInteger(data.roundBet) && data.roundBet >= 0) this.roundBet = data.roundBet;
+            if (typeof data.roundSettled === 'boolean') this.roundSettled = data.roundSettled;
+            if (Number.isInteger(data.roundNet)) this.roundNet = data.roundNet;
+        } catch (e) { /* localStorage unavailable or corrupted: start again */ }
     }
 
     /**
-     * Saves the state (chips, unlocked themes and active theme) in localStorage.
+     * Saves the state (chips, unlocked themes, active theme, chosen bet and the round's bet) in localStorage.
      * Failures are ignored.
      * @returns {void}
      */
     save() {
         try {
             localStorage.setItem(Wallet.STORAGE_KEY, JSON.stringify({
-                chips: this.chips, unlocked: this.unlocked, theme: this.theme
+                chips: this.chips,
+                unlocked: this.unlocked,
+                theme: this.theme,
+                bet: this.bet,
+                roundBet: this.roundBet,
+                roundSettled: this.roundSettled,
+                roundNet: this.roundNet
             }));
-        } catch (e) { /* ignora */ }
+        } catch (e) { /* ignored */ }
     }
 
     /**
@@ -143,28 +115,88 @@ class Wallet {
     }
 
     /**
-     * Takes a bet out of the chips.
-     * @param {number} amount - The bet amount.
-     * @returns {boolean} - True if the bet was placed.
+     * Returns the highest bet the player can still wager:
+     * the chips owned rounded down to a multiple of BET_STEP, and never below MIN_BET.
+     * @returns {number} - The maximum bet.
      */
-    placeBet(amount) {
-        if (!this.canBet(amount)) return false;
-        this.chips -= amount;
+    maxBet() {
+        return Math.max(Wallet.MIN_BET, Math.floor(this.chips / Wallet.BET_STEP) * Wallet.BET_STEP);
+    }
+
+    /**
+     * Changes the bet in steps, or sets the maximum with 'max'.
+     * The result is rounded to a multiple of BET_STEP and kept between MIN_BET and maxBet().
+     * The chosen bet is saved, so it is still there after reloading the page.
+     * @param {number|string} change - Amount to add (can be negative) or 'max'.
+     * @returns {number} - The new bet.
+     */
+    changeBet(change) {
+        const wanted = change === 'max' ? this.chips : this.bet + change;
+        const rounded = Math.floor(wanted / Wallet.BET_STEP) * Wallet.BET_STEP;
+        this.bet = Math.min(Math.max(rounded, Wallet.MIN_BET), this.maxBet());
+        this.save();
+        return this.bet;
+    }
+
+    /**
+     * Takes the current bet out of the chips and opens a new round to be settled.
+     * @returns {boolean} - True if the bet was placed (false if it is not valid).
+     */
+    placeBet() {
+        if (!this.canBet(this.bet)) return false;
+        this.chips -= this.bet;
+        this.roundBet = this.bet;
+        this.roundSettled = false;
+        this.roundNet = 0;
         this.save();
         return true;
     }
 
     /**
-     * Adds chips (prize or returned bet).
-     * @param {number} amount - Chips to add.
-     * @returns {void}
+     * Settles the bet of the current round (only once per round).
+     * The bet was already taken in placeBet(): a win returns double, a draw returns the bet
+     * and a loss returns nothing. Calling it again in the same round has no further effect.
+     * @param {GameState} state - The final state of the game.
+     * @returns {number} - Chips won (+) or lost (-) in the round.
      */
-    add(amount) {
-        this.chips += amount;
+    settle(state) {
+        if (this.roundSettled) {
+            return this.roundNet;
+        }
+        this.roundSettled = true;
+
+        let payout = 0;
+        if (state.playerWon) {
+            payout = this.roundBet * 2;
+        } else if (!state.dealerWon) {
+            payout = this.roundBet; // Draw
+        }
+
+        this.chips += payout;
+        this.roundNet = payout - this.roundBet;
         this.save();
+        return this.roundNet;
     }
 
-    /** 
+    /**
+     * Checks whether an id belongs to a known theme.
+     * @param {string} themeId - The id to check.
+     * @returns {boolean} - True if the theme exists.
+     */
+    static isTheme(themeId) {
+        return Object.hasOwn(Wallet.THEME_COSTS, themeId);
+    }
+
+    /**
+     * Returns the price of a theme.
+     * @param {string} themeId - The id of the theme.
+     * @returns {number|undefined} - The price in chips (undefined if the theme does not exist).
+     */
+    themeCost(themeId) {
+        return Wallet.THEME_COSTS[themeId];
+    }
+
+    /**
      * Checks whether a theme is already unlocked.
      * @param {string} themeId - The id of the theme to check.
      * @returns {boolean} - True if the theme is unlocked.
@@ -179,9 +211,8 @@ class Wallet {
      * @returns {boolean} - True if the purchase was made (false if unknown, already owned or too expensive).
      */
     buy(themeId) {
-        const theme = THEMES.find(t => t.id === themeId);
-        if (!theme || this.owns(themeId) || this.chips < theme.cost) return false;
-        this.chips -= theme.cost;
+        if (!Wallet.isTheme(themeId) || this.owns(themeId) || this.chips < this.themeCost(themeId)) return false;
+        this.chips -= this.themeCost(themeId);
         this.unlocked.push(themeId);
         this.theme = themeId;
         this.save();
