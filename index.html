@@ -30,12 +30,12 @@
   </header>
 
   <main class="page-shell">
-    <section class="game-table" id="game" aria-label="Mesa de jogo">
+    <section class="game-table" aria-label="Mesa de jogo">
       <div class="table-heading">
         <span class="table-kicker">MESA</span>
         <div class="table-tools">
           
-          <span class="rule-chip">Limite <strong>25</strong></span>
+          <span class="rule-chip">Limite <strong data-const="maxPoints"></strong></span>
           <button class="rules-trigger" type="button" data-bs-toggle="modal"
             data-bs-target="#shop-dialog">
             Loja
@@ -75,20 +75,20 @@
       <section class="bet-panel" id="bet-panel" aria-label="Aposta">
         <div class="bet-controls">
           <span class="score-label">APOSTA</span>
-          <button class="bet-step" type="button" aria-label="Diminuir aposta" onclick="changeBet(-10)">−</button>
+          <button class="bet-step" type="button" aria-label="Diminuir aposta" data-bet-step="-1">-</button>
           <strong id="bet-amount">10</strong>
-          <button class="bet-step" type="button" aria-label="Aumentar aposta" onclick="changeBet(10)">+</button>
-          <button class="bet-step" type="button" onclick="changeBet('max')">Máx</button>
+          <button class="bet-step" type="button" aria-label="Aumentar aposta" data-bet-step="1">+</button>
+          <button class="bet-step" type="button" data-bet-step="max">Máx</button>
         </div>
-        <button class="btn button button-primary" type="button" onclick="startRound()">Dar cartas</button>
+        <button class="btn button button-primary" id="deal" type="button">Dar cartas</button>
       </section>
 
       <section class="controls" aria-label="Ações do jogo">
-        <button class="btn button button-primary" id="card" type="button" onclick="playerNewCard()">
+        <button class="btn button button-primary" id="card" type="button">
           <span aria-hidden="true"><i class="bi bi-plus"></i></span> Pedir carta
         </button>
-        <button class="btn button button-secondary" id="stand" type="button" onclick="dealerFinish()">Ficar</button>
-        <button class="btn button button-new" id="new_game" type="button" onclick="newGame()" disabled>Nova ronda</button>
+        <button class="btn button button-secondary" id="stand" type="button">Ficar</button>
+        <button class="btn button button-new" id="new_game" type="button" disabled>Nova ronda</button>
       </section>
     </section>
 
@@ -96,12 +96,12 @@
       <span class="status-dot" aria-hidden="true"></span>
       <p id="game_status" class="game-status">A preparar a mesa...</p>
     </section>
-    <p class="game-note">O dealer pára aos 21 pontos ou mais. Não ultrapasses os 25.</p>
+    <p class="game-note">O dealer pára aos <span data-const="dealerPoints"></span> pontos ou mais. Não ultrapasses os <span data-const="maxPoints"></span>.</p>
   </main>
 
 
   <footer class="site-footer">
-    <span><i class="bi bi-c-circle"></i> 2026 Tiago Dias</span>
+    <span><i class="bi bi-c-circle"></i> 2026 Rafael Carvalho & Tiago Dias</span>
     <span aria-hidden="true"><i class="bi bi-suit-club-fill"></i> &nbsp; <i class="bi bi-suit-diamond-fill"></i>
        &nbsp; <i class="bi bi-suit-heart-fill"></i> &nbsp; <i class="bi bi-suit-spade-fill"></i></span>
   </footer>
@@ -122,7 +122,7 @@
           <section class="rules-section" aria-labelledby="card-values-title">
             <h3 id="card-values-title">Quanto vale cada carta</h3>
             <dl class="card-values">
-              <div><dt>Ás</dt><dd>11 pontos; passa a valer 1 se a mão ultrapassar 25.</dd></div>
+              <div><dt>Ás</dt><dd>11 pontos; passa a valer 1 se a mão ultrapassar <span data-const="maxPoints"></span>.</dd></div>
               <div><dt>2 a 10</dt><dd>O valor indicado na carta.</dd></div>
               <div><dt>Valete, Dama e Rei</dt><dd>10 pontos cada.</dd></div>
             </dl>
@@ -134,7 +134,7 @@
               <li>Recebes duas cartas. O dealer também recebe duas, mas uma fica escondida durante a tua vez.</li>
               <li>Escolhe <strong>Pedir carta</strong> para receber mais uma ou <strong>Ficar</strong> para passar a
                 vez ao dealer.</li>
-              <li>O dealer revela a carta escondida e joga automaticamente até ter pelo menos 21 pontos ou igualar a
+              <li>O dealer revela a carta escondida e joga automaticamente até ter pelo menos <span data-const="dealerPoints"></span> pontos, ou igualar ou superar a
                 tua pontuação.</li>
             </ol>
           </section>
@@ -142,9 +142,9 @@
           <section class="rules-section" aria-labelledby="winning-title">
             <h3 id="winning-title">Como se ganha</h3>
             <ul class="rules-list">
-              <li>O objetivo é fazer mais pontos do que o dealer, sem ultrapassar 25.</li>
-              <li>Se ultrapassares 25, perdes imediatamente. Se o dealer ultrapassar 25, ganhas.</li>
-              <li>Se fizeres exatamente 25 pontos, ganhas imediatamente.</li>
+              <li>O objetivo é fazer mais pontos do que o dealer, sem ultrapassar <span data-const="maxPoints"></span>.</li>
+              <li>Se ultrapassares <span data-const="maxPoints"></span>, perdes imediatamente. Se o dealer ultrapassar <span data-const="maxPoints"></span>, ganhas.</li>
+              <li>Se fizeres exatamente <span data-const="maxPoints"></span> pontos, ganhas imediatamente.</li>
               <li>Se o dealer fizer mais pontos do que tu, o dealer ganha. Se fizer os mesmos pontos, é empate.</li>
             </ul>
           </section>
@@ -152,10 +152,10 @@
           <section class="rules-section" aria-labelledby="chips-title">
             <h3 id="chips-title">Fichas e apostas</h3>
             <ul class="rules-list">
-              <li>Começas com 100 fichas. Antes de cada ronda escolhes quanto apostar (mínimo 10).</li>
-              <li>Se ganhas, recebes o dobro da aposta. Se empatas, a aposta é devolvida. Se perdes, ficas sem ela.</li>
+              <li>Começas com <span data-const="startChips"></span> fichas. Antes de cada ronda escolhes quanto apostar (mínimo <span data-const="minBet"></span>).</li>
+              <li>Se ganhas, recuperas o valor e ainda recebes mais o valor apostado. Se empatas, a aposta é devolvida. Se perdes, ficas sem ela.</li>
               <li>Usa as fichas na <strong>Loja</strong> para desbloquear temas exclusivos: cada um muda o fundo, a mesa, as letras, as animações e até o verso das cartas.</li>
-              <li>Se ficares sem fichas, recebes 100 novas e manténs os temas desbloqueados.</li>
+              <li>Se ficares sem fichas, recebes <span data-const="startChips"></span> novas e manténs os temas desbloqueados.</li>
             </ul>
           </section>
 
@@ -191,8 +191,8 @@
     crossorigin="anonymous"></script>
 
   <script src="js/blackjack_object.js"></script>
+  <script src="js/blackjack_themes.js"></script>
   <script src="js/blackjack_wallet.js"></script>
   <script src="js/blackjack_manager.js"></script>
-  <script>window.addEventListener('DOMContentLoaded', newGame);</script>
 </body>
 </html>
